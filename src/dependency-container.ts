@@ -208,10 +208,14 @@ class InternalDependencyContainer implements DependencyContainer {
     );
   }
 
-  public resolve<T>(
-    token: InjectionToken<T>,
-    context: ResolutionContext = new ResolutionContext()
-  ): T {
+  /**
+   * Resolve a token into an instance
+   *
+   * @param token {InjectionToken} The dependency token
+   * @param target {constructor<any>} Constructor resolving the dependency token
+   * @return {T} An instance of the dependency
+   */
+  public resolve<T>(token: InjectionToken<T>, target?: constructor<any>): T {
     const registration = this.getRegistration(token);
 
     if (!registration && isNormalToken(token)) {
@@ -223,9 +227,7 @@ class InternalDependencyContainer implements DependencyContainer {
     this.executePreResolutionInterceptor<T>(token, "Single");
 
     if (registration) {
-      const result = this.resolveRegistration(registration, context) as T;
-      this.executePostResolutionInterceptor(token, result, "Single");
-      return result;
+      return this.resolveRegistration(registration, target);
     }
 
     // No registration for this token, but since it's a constructor, return an instance
@@ -279,34 +281,18 @@ class InternalDependencyContainer implements DependencyContainer {
 
   private resolveRegistration<T>(
     registration: Registration,
-    context: ResolutionContext
+    target?: constructor<T>
   ): T {
-    // If we have already resolved this scoped dependency, return it
-    if (
-      registration.options.lifecycle === Lifecycle.ResolutionScoped &&
-      context.scopedResolutions.has(registration)
-    ) {
-      return context.scopedResolutions.get(registration);
-    }
-
-    const isSingleton = registration.options.lifecycle === Lifecycle.Singleton;
-    const isContainerScoped =
-      registration.options.lifecycle === Lifecycle.ContainerScoped;
-
-    const returnInstance = isSingleton || isContainerScoped;
-
-    let resolved: T;
-
     if (isValueProvider(registration.provider)) {
       resolved = registration.provider.useValue;
     } else if (isTokenProvider(registration.provider)) {
       resolved = returnInstance
         ? registration.instance ||
-          (registration.instance = this.resolve(
-            registration.provider.useToken,
-            context
-          ))
-        : this.resolve(registration.provider.useToken, context);
+            (registration.instance = this.resolve(
+              registration.provider.useToken,
+              target
+            ))
+        : this.resolve(registration.provider.useToken, target);
     } else if (isClassProvider(registration.provider)) {
       resolved = returnInstance
         ? registration.instance ||
@@ -316,7 +302,7 @@ class InternalDependencyContainer implements DependencyContainer {
           ))
         : this.construct(registration.provider.useClass, context);
     } else if (isFactoryProvider(registration.provider)) {
-      resolved = registration.provider.useFactory(this);
+      return registration.provider.useFactory(this, target);
     } else {
       resolved = this.construct(registration.provider, context);
     }
@@ -326,8 +312,11 @@ class InternalDependencyContainer implements DependencyContainer {
       context.scopedResolutions.set(registration, resolved);
     }
 
-    return resolved;
-  }
+  public resolveAll<T>(
+    token: InjectionToken<T>,
+    parent?: constructor<any>
+  ): T[] {
+    const registration = this.getAllRegistrations(token);
 
   public resolveAll<T>(
     token: InjectionToken<T>,
@@ -341,11 +330,9 @@ class InternalDependencyContainer implements DependencyContainer {
       );
     }
 
-    this.executePreResolutionInterceptor(token, "All");
-
-    if (registrations) {
-      const result = registrations.map(item =>
-        this.resolveRegistration<T>(item, context)
+    if (registration) {
+      return registration.map(item =>
+        this.resolveRegistration<T>(item, parent)
       );
 
       this.executePostResolutionInterceptor(token, result, "All");
@@ -486,7 +473,14 @@ class InternalDependencyContainer implements DependencyContainer {
       }
     }
 
-    const params = paramInfo.map(this.resolveParams(context, ctor));
+    const params = paramInfo.map(param => {
+      if (isTokenDescriptor(param)) {
+        return param.multiple
+          ? this.resolveAll(param.token, ctor)
+          : this.resolve(param.token, ctor);
+      }
+      return this.resolve(param, ctor);
+    });
 
     return new ctor(...params);
   }

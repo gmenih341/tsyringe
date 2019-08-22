@@ -74,20 +74,10 @@ export default interface DependencyContainer {
    * @return An instance of the dependency
    */
   resolve<T>(token: InjectionToken<T>): T;
+  resolve<T>(token: InjectionToken<T>, parent?: constructor<any>): T;
   resolveAll<T>(token: InjectionToken<T>): T[];
-
-  /**
-   * Check if the given dependency is registered
-   *
-   * @param token The token to check
-   * @param recursive Should parent containers be checked?
-   * @return Whether or not the token is registered
-   */
-  isRegistered<T>(token: InjectionToken<T>, recursive?: boolean): boolean;
-
-  /**
-   * Clears all registered tokens
-   */
+  resolveAll<T>(token: InjectionToken<T>, parent?: constructor<any>): T[];
+  isRegistered<T>(token: InjectionToken<T>): boolean;
   reset(): void;
 
   clearInstances(): void;
