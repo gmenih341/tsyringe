@@ -74,9 +74,9 @@ export default interface DependencyContainer {
    * @return An instance of the dependency
    */
   resolve<T>(token: InjectionToken<T>): T;
-  resolve<T>(token: InjectionToken<T>, parent?: constructor<any>): T;
+  resolve<T>(token: InjectionToken<T>, parent: constructor<any>): T;
   resolveAll<T>(token: InjectionToken<T>): T[];
-  resolveAll<T>(token: InjectionToken<T>, parent?: constructor<any>): T[];
+  resolveAll<T>(token: InjectionToken<T>, parent: constructor<any>): T[];
   isRegistered<T>(token: InjectionToken<T>): boolean;
   reset(): void;
 
